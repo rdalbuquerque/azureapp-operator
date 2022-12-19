@@ -1,0 +1,19 @@
+domain: rdalbuquerque.dev
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: operator
+repo: github.com/rdalbuquerque/azure-operator/operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: rdalbuquerque.dev
+  group: k8sapp
+  kind: AzureApp
+  path: github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1
+  version: v0alpha1
+version: "3"

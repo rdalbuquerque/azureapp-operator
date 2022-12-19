@@ -1,0 +1,74 @@
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "{{ .ResourceGroup}}"
+    storage_account_name = "{{ .StorageAccount}}"
+    container_name       = "{{ .Container}}"
+    key                  = "k8sapp.{{ .Key}}.json"
+  }
+
+  required_providers {
+    azuread = {
+      source = "hashicorp/azuread"
+    }
+    azurerm = {
+      source = "hashicorp/azurerm"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+variable "identifier" {
+  type = string
+}
+
+variable "appRoles" {
+  type    = list(string)
+  default = []
+}
+
+variable "identifierUri" {
+  type = string
+}
+
+variable "enableDatabase" {
+  type = bool
+  default = false
+}
+
+module "azapp" {
+  source         = "../azapp"
+  display_name   = "${var.identifier}-app"
+  kv_name        = "${var.identifier}-kv"
+  identifier_uri = var.identifierUri
+  app_roles      = var.appRoles
+}
+
+data "azurerm_mssql_server" "sv" {
+  resource_group_name = "tf-remote"
+  name = "rdatestsv1"  
+} 
+
+resource "azurerm_mssql_database" "db" {
+  count = var.enableDatabase ? 1 : 0
+
+  name                        = "${var.identifier}-db"
+  server_id                   = data.azurerm_mssql_server.sv.id
+  collation                   = "SQL_Latin1_General_CP1_CI_AI"
+  sku_name                    = "GP_S_Gen5_2"
+  zone_redundant              = false
+  auto_pause_delay_in_minutes = "60"
+  max_size_gb                 = 1
+  min_capacity                = "0.5"
+}
+
+output "app_id" {
+  value = module.azapp.app_id
+}
+
+output "app_secret" {
+  value     = module.azapp.app_secret
+  sensitive = true
+}

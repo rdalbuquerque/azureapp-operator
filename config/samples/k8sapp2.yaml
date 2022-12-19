@@ -1,0 +1,13 @@
+apiVersion: k8sapp.rdalbuquerque.dev/v0alpha1
+kind: AzureApp
+metadata:
+  name: app2
+spec:
+  identifier: apprda2
+  identifierUri: api://myappuri2
+  url: myapp2.local.dev
+  containerImage: nginx
+  servingPort: 8080
+  enableDatabase: true
+  envVars:
+    var1: value1

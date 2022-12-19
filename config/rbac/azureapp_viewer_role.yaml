@@ -1,0 +1,27 @@
+# permissions for end users to view azureapps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: azureapp-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: operator
+    app.kubernetes.io/part-of: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: azureapp-viewer-role
+rules:
+- apiGroups:
+  - k8sapp.rdalbuquerque.dev
+  resources:
+  - azureapps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - k8sapp.rdalbuquerque.dev
+  resources:
+  - azureapps/status
+  verbs:
+  - get
