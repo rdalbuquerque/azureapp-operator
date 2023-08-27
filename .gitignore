@@ -29,4 +29,6 @@ Dockerfile.cross
 
 .vscode
 
-*/**/.infracost
+.infracost
+
+.env*

@@ -10,4 +10,4 @@ spec:
   servingPort: 8080
   enableDatabase: true
   envVars:
-    var1: value1
+    var1: value

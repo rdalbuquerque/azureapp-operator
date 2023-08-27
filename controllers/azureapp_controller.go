@@ -18,29 +18,28 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/go-logr/logr"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
-	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/db"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/dependencies"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/kubeobjects"
-	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/tf"
-	appsv1 "k8s.io/api/apps/v1"
 )
 
 // AzureAppReconciler reconciles a AzureApp object
 type AzureAppReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	TfExecPath string
 	BaseDir    string
+	kubeclient *kubeobjects.KubeClient
 }
 
 var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("azureapp-controller")}
@@ -58,135 +57,62 @@ var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("a
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
+
+// this function should have the following phases:
+// 1- manage external dependencies
+//
+//	1- manage terraform managed dependencies
+//	2- manage other external dependencies
+//
+// 2- once external dependencies are good to go, manage kubernetes objects
 func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var l logr.Logger
-	k := kubeobjects.NewKubeClient(r.Client, ctx, applyOpts)
+	logr := logr.FromContextOrDiscard(ctx)
+
+	// map azure app being reconcile into azapp object
 	azapp := k8sappv0alpha1.AzureApp{}
 	if err := r.Get(ctx, req.NamespacedName, &azapp); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	l = log.Log.WithName(azapp.Name)
-	l.Info("Reconciling AzureApp")
-	if azapp.Status.ProvisioningState == "" {
-		if err := k.SetProvisionState("Initiating Azure Workdir", &azapp); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-	l.Info("Setting up and initializing azure workdir")
-	tf, err := tf.NewTerraformClient(r.TfExecPath, fmt.Sprintf("%s/terraform", r.BaseDir), &azapp, l)
-	if err != nil {
-		l.Error(err, "Unable to set Azure workdir for app")
-		return ctrl.Result{}, err
-	}
-	if err := tf.GenerateTerraformVarFile(&azapp); err != nil {
-		l.Error(err, "Unbable to generate terraform var file for app")
+
+	// initiates logging and kubernetes client
+	r.kubeclient = kubeobjects.NewKubeClient(r.Client, ctx, applyOpts)
+
+	// setup finalizer and evaluate DeletionTimestamp, if it's not zero, executes cleanup and removes finalizer
+	if err := r.ManageFinalizer(ctx, azapp); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	finalizer := "DestroyAzure"
-	r.SetupFinalizer(finalizer, &azapp)
-	if !azapp.ObjectMeta.DeletionTimestamp.IsZero() {
-		l.Info("Removing Azure Resources")
-		if err := k.SetProvisionState("Removing Azure Resources", &azapp); err != nil {
-			return ctrl.Result{}, err
-		}
-		tf.DestroyAzureResources(&azapp)
-		if err := r.RemoveFinalizer(finalizer, &azapp); err != nil {
-			return ctrl.Result{}, err
-		}
-		l.Info("Done deleting Azure Resources")
-		return ctrl.Result{}, nil
-	}
-
-	if err := tf.InitTerraform(); err != nil {
-		l.Error(err, "Unable to initialize workdir for app")
+	// evaluates if reconcile loop should actually run
+	if reconcile, err := shouldReconcile(&azapp); !reconcile {
+		logr.Info("Skipping reconciliation")
 		return ctrl.Result{}, err
 	}
 
-	hasAzureChanged, err := tf.CheckForAzureChanges()
+	// reconcile external dependencies
+	logr.Info("Reconciling AzureApp")
+	if err := r.kubeclient.SetProvisionState("Reconciling external dependencies", &azapp); err != nil {
+		return ctrl.Result{}, ignoreConflict(ctx, err)
+	}
+	if err := dependencies.ManageTerraformableExternalDependencies(&azapp, "apply"); err != nil {
+		return ctrl.Result{}, errors.New(fmt.Sprintf("error managing terraform dependencies: %s", err))
+	}
+	if err := dependencies.ManageOtherExternalDependencies(&azapp); err != nil {
+		return ctrl.Result{}, errors.New(fmt.Sprintf("error managing other dependencies: %s", err))
+	}
+
+	// reconcile kubernetes objects
+	azappk8s, err := r.buildKubeObjects(azapp)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
-	if *hasAzureChanged {
-		l.Info("Azure changes identified, applying them")
-		if err := k.SetProvisionState("Provisioning Azure Resources", &azapp); err != nil {
-			return ctrl.Result{}, err
-		}
-		err := tf.ReconcileAzureResources()
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		l.Info("Successfully applied Azure changes")
-	} else {
-		l.Info("No changes to Azure, moving on")
-	}
-
-	// Setup DB User
-	if azapp.Spec.EnableDatabase {
-		if azapp.Status.ProvisioningState == "Provisioning Azure Resources" {
-			if err := k.SetProvisionState("Configuring DB User", &azapp); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		sqlclient, err := db.NewServicePrincipalClient(
-			os.Getenv("ARM_CLIENT_ID"),
-			os.Getenv("ARM_CLIENT_SECRET"),
-			"rdatestsv1",
-			fmt.Sprintf("%s-db", azapp.Spec.Identifier),
-			ctx,
-		)
-		if err != nil {
-			l.Error(err, "Unable to instantiate sql client")
-			return ctrl.Result{}, err
-		}
-		username := fmt.Sprintf("%s-app", azapp.Spec.Identifier)
-		if err := sqlclient.CreateUser(username); err != nil {
-			l.Error(err, "Unable to create user", "username", username)
-			return ctrl.Result{}, err
-		}
-		if err := sqlclient.GrantOwner(username); err != nil {
-			l.Error(err, "Unable to grant owner to user", "username", username)
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Setup kubeobjects
-	azappk8s := kubeobjects.AzAppKubeObjects
-	appCredential, err := tf.GetAzureAppCredential()
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if secret, err := r.desiredSecret(appCredential, &azapp); err != nil {
-		return ctrl.Result{}, err
-	} else {
-		azappk8s = append(azappk8s, &secret)
-		if deployment, err := r.desiredDeployment(&azapp, secret); err != nil {
-			return ctrl.Result{}, err
-		} else {
-			azappk8s = append(azappk8s, &deployment)
-		}
-	}
-	if service, err := r.desiredService(&azapp); err != nil {
-		return ctrl.Result{}, err
-	} else {
-		azappk8s = append(azappk8s, &service)
-	}
-	if ingress, err := r.desiredIngress(&azapp); err != nil {
-		return ctrl.Result{}, err
-	} else {
-		azappk8s = append(azappk8s, &ingress)
-	}
-	k.ApplyAll(azappk8s)
+	r.kubeclient.ApplyAll(azappk8s)
 
 	azapp.Status.Deployment = azapp.Spec.Identifier
 
-	if azapp.Status.ProvisioningState != "Provisioned" {
-		if err := k.SetProvisionState("Provisioned", &azapp); err != nil {
-			return ctrl.Result{}, err
-		}
+	if err := r.kubeclient.SetProvisionState("Provisioned", &azapp); err != nil {
+		return ctrl.Result{}, ignoreConflict(ctx, err)
 	}
-	l.Info("Successfully reconciled AzureApp")
+	logr.Info(fmt.Sprintf("Successfully reconciled AzureApp: %s", azapp.Name))
 
 	return ctrl.Result{}, nil
 }
@@ -195,7 +121,13 @@ func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 func (r *AzureAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&k8sappv0alpha1.AzureApp{}).
-		Owns(&appsv1.Deployment{}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 3,
+			LogConstructor: func(req *reconcile.Request) logr.Logger {
+				if req == nil {
+					return log.Log
+				}
+				return log.Log.WithName(req.Name).WithValues("namespace", req.Namespace)
+			}}).
 		Complete(r)
 }

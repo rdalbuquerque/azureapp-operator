@@ -12,7 +12,7 @@ terraform {
 data "azurerm_client_config" "this" {}
 
 data "azurerm_resource_group" "backend" {
-  name = "tf-remote"
+  name = "terraformcloud-test-prd"
 }
 
 provider "azurerm" {

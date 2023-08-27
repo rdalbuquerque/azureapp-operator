@@ -93,10 +93,25 @@ spec:
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
-            cpu: 500m
-            memory: 128Mi
+            memory: 512Mi
           requests:
             cpu: 10m
             memory: 64Mi
+        env:
+        - name: TF_EXECUTABLE_PATH
+          value: /tmp/terraform
+        - name: TF_BASE_PATH
+          value: /terraform
+        - name: ARM_TENANT_ID
+          value: "8006ac7c-1b1e-417b-ad4a-57b5f9157df9" 
+        - name: ARM_SUBSCRIPTION_ID
+          value: "73a77350-bf8c-43ec-aa8a-e642dedcdb8a"
+        - name: ARM_CLIENT_ID
+          value: 23432e76-9f5c-49d5-acf9-a54da22f969f
+        - name: ARM_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: operator-credential
+              key: ARM_CLIENT_SECRET
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

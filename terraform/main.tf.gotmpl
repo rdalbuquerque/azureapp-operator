@@ -12,11 +12,13 @@ terraform {
     }
     azurerm = {
       source = "hashicorp/azurerm"
+      version = "3.66.0"
     }
   }
 }
 
 provider "azurerm" {
+  skip_provider_registration = true
   features {}
 }
 
@@ -47,8 +49,8 @@ module "azapp" {
 }
 
 data "azurerm_mssql_server" "sv" {
-  resource_group_name = "tf-remote"
-  name = "rdatestsv1"  
+  resource_group_name = "terraformcloud-test-prd"
+  name = "prdazureappoperatorsv1"  
 } 
 
 resource "azurerm_mssql_database" "db" {
