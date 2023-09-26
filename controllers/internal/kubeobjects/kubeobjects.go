@@ -38,11 +38,30 @@ func (k *KubeClient) ApplyAll(kubeobjects []client.Object) error {
 
 func (k *KubeClient) SetProvisionState(provState string, azapp *k8sappv0alpha1.AzureApp) error {
 	logr := logr.FromContextOrDiscard(k.context)
-	logr.Info(fmt.Sprintf("Setting provisioning state for app [%s]", azapp.Name))
-	azapp.Status.ProvisioningState = provState
-	if err := k.Status().Update(k.context, azapp); err != nil {
-		return err
+	if provState != azapp.Status.ProvisioningState {
+		logr.Info(fmt.Sprintf("Setting provisioning state for app [%s]", azapp.Name))
+		originalAzapp := azapp.DeepCopy()
+		azapp.Status.ProvisioningState = provState
+		patch := client.MergeFrom(originalAzapp)
+		if err := k.Status().Patch(k.context, azapp, patch); err != nil {
+			return err
+		}
+		logr.Info(fmt.Sprintf("Successfully set provisioning state for app [%s] to: %s", azapp.Name, provState))
 	}
-	logr.Info(fmt.Sprintf("Successfully set provisioning state for app [%s] to: %s", azapp.Name, provState))
+	return nil
+}
+
+func (k *KubeClient) SetDeploymentName(deployment string, azapp *k8sappv0alpha1.AzureApp) error {
+	logr := logr.FromContextOrDiscard(k.context)
+	if deployment != azapp.Status.Deployment {
+		logr.Info(fmt.Sprintf("Setting provisioning state for app [%s]", azapp.Name))
+		originalAzapp := azapp.DeepCopy()
+		azapp.Status.Deployment = deployment
+		patch := client.MergeFrom(originalAzapp)
+		if err := k.Status().Patch(k.context, azapp, patch); err != nil {
+			return err
+		}
+		logr.Info(fmt.Sprintf("Successfully set deployment state for app [%s] to: %s", azapp.Name, deployment))
+	}
 	return nil
 }

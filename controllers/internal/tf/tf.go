@@ -12,7 +12,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/hashicorp/terraform-exec/tfexec"
+	"github.com/rdalbuquerque/azure-operator/controller/config"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
 )
 
 type TfClient struct {
@@ -30,10 +32,13 @@ func NewTerraformClient(tfExePath, tfBaseDir string, azapp *k8sappv0alpha1.Azure
 		return nil, err
 	}
 	tf, err := tfexec.NewTerraform(workdir, tfExePath)
+	if err != nil {
+		return nil, err
+	}
 	if err := renderTerraformMain(azapp, tfBaseDir); err != nil {
 		return nil, err
 	}
-	if err != nil {
+	if err := tf.Init(context.TODO()); err != nil {
 		return nil, err
 	}
 	return &TfClient{
@@ -50,7 +55,7 @@ type tfBackendInfo struct {
 
 func renderTerraformMain(azapp *k8sappv0alpha1.AzureApp, tfDir string) error {
 	backendInfo := tfBackendInfo{}
-	backendInfo.ResourceGroup = "terraformcloud-test-prd"
+	backendInfo.ResourceGroup = config.Config.
 	backendInfo.StorageAccount = "prdazureappoperator"
 	backendInfo.Container = "state"
 	backendInfo.Key = azapp.Name
@@ -63,10 +68,6 @@ func renderTerraformMain(azapp *k8sappv0alpha1.AzureApp, tfDir string) error {
 		return err
 	}
 	return tmpl.Execute(maintf, backendInfo)
-}
-
-func (tf *TfClient) InitTerraform() error {
-	return tf.Init(context.Background())
 }
 
 func (tf *TfClient) GenerateTerraformVarFile(azapp *k8sappv0alpha1.AzureApp) error {
@@ -95,19 +96,19 @@ func (tf *TfClient) GetAzureAppCredential() (map[string]string, error) {
 	return appCreds, nil
 }
 
-func (tf *TfClient) ReconcileAzureResources() error {
+func (tf *TfClient) ReconcileAzureResources(planfile string) error {
 	if err := os.Chdir(tf.WorkingDir()); err != nil {
 		return err
 	}
 	return tf.Apply(context.Background())
 }
 
-func (tf *TfClient) DestroyAzureResources(azapp *k8sappv0alpha1.AzureApp) error {
+func (tf *TfClient) DestroyAzureResources(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) error {
 	if err := os.Chdir(tf.WorkingDir()); err != nil {
 		return err
 	}
-	if err := tf.Destroy(context.Background()); err == nil {
-		if err := tf.deleteStateFile(azapp); err != nil {
+	if err := tf.Destroy(context.TODO()); err == nil {
+		if err := tf.deleteStateFile(ctx, azapp); err != nil {
 			return err
 		}
 	} else {
@@ -116,10 +117,16 @@ func (tf *TfClient) DestroyAzureResources(azapp *k8sappv0alpha1.AzureApp) error 
 	return nil
 }
 
-func (tf *TfClient) deleteStateFile(azapp *k8sappv0alpha1.AzureApp) error {
-	azcred, _ := azidentity.NewClientSecretCredential(os.Getenv("ARM_TENANT_ID"), os.Getenv("ARM_CLIENT_ID"), os.Getenv("ARM_CLIENT_SECRET"), nil)
-	bbClient, _ := blockblob.NewClient(fmt.Sprintf("https://prdazureappoperator.blob.core.windows.net/state/k8sapp.%s.json", azapp.Name), azcred, nil)
-	if _, err := bbClient.Delete(context.Background(), nil); err != nil {
+func (tf *TfClient) deleteStateFile(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) error {
+	azcred, err := azidentity.NewClientSecretCredential(os.Getenv("ARM_TENANT_ID"), os.Getenv("ARM_CLIENT_ID"), os.Getenv("ARM_CLIENT_SECRET"), nil)
+	if err != nil {
+		return err
+	}
+	bbClient, err := blockblob.NewClient(fmt.Sprintf("https://prdazureappoperator.blob.core.windows.net/state/k8sapp.%s.json", azapp.Name), azcred, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := bbClient.Delete(context.TODO(), nil); err != nil {
 		return err
 	}
 	return nil

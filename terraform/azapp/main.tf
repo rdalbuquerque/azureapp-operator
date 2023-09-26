@@ -11,6 +11,8 @@ terraform {
 
 data "azurerm_client_config" "this" {}
 
+data "azuread_client_config" "this" {}
+
 data "azurerm_resource_group" "backend" {
   name = "terraformcloud-test-prd"
 }
@@ -47,13 +49,20 @@ resource "azuread_application_password" "this" {
 }
 
 resource "azuread_service_principal" "this" {
-  application_id = azuread_application.this.application_id 
+  application_id = azuread_application.this.application_id
 }
 
 resource "azurerm_key_vault" "this" {
-  resource_group_name = data.azurerm_resource_group.backend.name
-  location            = data.azurerm_resource_group.backend.location
-  name                = var.kv_name
-  tenant_id           = data.azurerm_client_config.this.tenant_id
-  sku_name            = "standard"
+  resource_group_name       = data.azurerm_resource_group.backend.name
+  location                  = data.azurerm_resource_group.backend.location
+  name                      = var.kv_name
+  tenant_id                 = data.azurerm_client_config.this.tenant_id
+  sku_name                  = "standard"
+  enable_rbac_authorization = true
+}
+
+resource "azurerm_role_assignment" "current_client_2_kv" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azuread_client_config.this.object_id
 }

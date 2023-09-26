@@ -32,3 +32,5 @@ Dockerfile.cross
 .infracost
 
 .env*
+
+terraform/app*

@@ -53,6 +53,21 @@ data "azurerm_mssql_server" "sv" {
   name = "prdazureappoperatorsv1"  
 } 
 
+data "http" "current_ip" {
+  url = "https://api.ipify.org"
+
+  request_headers = {
+    Accept = "application/json"
+  }
+}
+
+resource "azurerm_mssql_firewall_rule" "allow_client" {
+  name             = "${var.identifier}-allow-client-rule"
+  server_id        = data.azurerm_mssql_server.sv.id
+  start_ip_address = data.http.current_ip.body
+  end_ip_address   = data.http.current_ip.body
+}
+
 resource "azurerm_mssql_database" "db" {
   count = var.enableDatabase ? 1 : 0
 

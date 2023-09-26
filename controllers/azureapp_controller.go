@@ -18,8 +18,8 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,36 +68,53 @@ var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("a
 func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logr := logr.FromContextOrDiscard(ctx)
 
-	// map azure app being reconcile into azapp object
+	// map azure app being reconciled into azapp object
 	azapp := k8sappv0alpha1.AzureApp{}
 	if err := r.Get(ctx, req.NamespacedName, &azapp); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// initiates logging and kubernetes client
+	// initiates clients
 	r.kubeclient = kubeobjects.NewKubeClient(r.Client, ctx, applyOpts)
-
-	// setup finalizer and evaluate DeletionTimestamp, if it's not zero, executes cleanup and removes finalizer
-	if err := r.ManageFinalizer(ctx, azapp); err != nil {
+	tfclient, err := dependencies.NewTerraformClient(&azapp)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// evaluates if reconcile loop should actually run
-	if reconcile, err := shouldReconcile(&azapp); !reconcile {
-		logr.Info("Skipping reconciliation")
+	// setup finalizer and evaluate DeletionTimestamp, if it's not zero, executes cleanup and removes finalizer
+	if objdeleted, err := r.ManageFinalizer(ctx, azapp, tfclient); err != nil {
 		return ctrl.Result{}, err
+	} else if objdeleted {
+		return ctrl.Result{}, nil
 	}
 
 	// reconcile external dependencies
-	logr.Info("Reconciling AzureApp")
-	if err := r.kubeclient.SetProvisionState("Reconciling external dependencies", &azapp); err != nil {
-		return ctrl.Result{}, ignoreConflict(ctx, err)
+	planfile, tfchanged, err := tfclient.CheckTerraformableExternalDependencies(ctx, &azapp)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
-	if err := dependencies.ManageTerraformableExternalDependencies(&azapp, "apply"); err != nil {
-		return ctrl.Result{}, errors.New(fmt.Sprintf("error managing terraform dependencies: %s", err))
+	if tfchanged {
+		logr.Info("Reconciling AzureApp")
+		if err := r.kubeclient.SetProvisionState("Reconciling external dependencies", &azapp); err != nil {
+			return ctrl.Result{}, ignoreConflict(ctx, err)
+		}
+		if err := tfclient.ManageTerraformableExternalDependencies(ctx, &azapp, "apply", planfile); err != nil {
+			return ctrl.Result{}, fmt.Errorf("error managing terraform dependencies: %s", err)
+		}
+		if err := dependencies.ManageOtherExternalDependencies(&azapp); err != nil {
+			return ctrl.Result{}, fmt.Errorf("error managing other dependencies: %s", err)
+		}
+
 	}
-	if err := dependencies.ManageOtherExternalDependencies(&azapp); err != nil {
-		return ctrl.Result{}, errors.New(fmt.Sprintf("error managing other dependencies: %s", err))
+
+	logr.Info("Checking certificate")
+	ok, err := dependencies.CheckCertificate(&azapp)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if !ok {
+		err := r.kubeclient.SetProvisionState("Waiting certificate", &azapp)
+		return ctrl.Result{RequeueAfter: time.Duration(30) * time.Second}, ignoreConflict(ctx, err)
 	}
 
 	// reconcile kubernetes objects
@@ -105,15 +122,16 @@ func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	r.kubeclient.ApplyAll(azappk8s)
-
-	azapp.Status.Deployment = azapp.Spec.Identifier
-
+	if err := r.kubeclient.ApplyAll(azappk8s); err != nil {
+		return ctrl.Result{}, ignoreConflict(ctx, err)
+	}
+	if err := r.kubeclient.SetDeploymentName(azapp.Spec.Identifier, &azapp); err != nil {
+		return ctrl.Result{}, ignoreConflict(ctx, err)
+	}
 	if err := r.kubeclient.SetProvisionState("Provisioned", &azapp); err != nil {
 		return ctrl.Result{}, ignoreConflict(ctx, err)
 	}
 	logr.Info(fmt.Sprintf("Successfully reconciled AzureApp: %s", azapp.Name))
-
 	return ctrl.Result{}, nil
 }
 

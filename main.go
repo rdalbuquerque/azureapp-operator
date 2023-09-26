@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/lease"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -58,6 +59,10 @@ func init() {
 }
 
 func main() {
+	if err := config.LoadConfig(); err != nil {
+		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string

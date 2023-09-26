@@ -5,40 +5,48 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/hashicorp/terraform-exec/tfexec"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/az"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/db"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/tf"
 )
 
-// Define your custom type
-type TerraformPhase string
+type TfDependenciesClient struct {
+	tfc *tf.TfClient
+}
 
-// Define the accepted strings as constants
-const (
-	Apply   TerraformPhase = "apply"
-	Destroy TerraformPhase = "destroy"
-)
-
-func ManageTerraformableExternalDependencies(azapp *k8sappv0alpha1.AzureApp, phase TerraformPhase) error {
+func NewTerraformClient(azapp *k8sappv0alpha1.AzureApp) (*TfDependenciesClient, error) {
 	tf, err := tf.NewTerraformClient(os.Getenv("TF_EXECUTABLE_PATH"), os.Getenv("TF_BASE_PATH"), azapp)
-	if err != nil {
-		return err
-	}
+	return &TfDependenciesClient{tfc: tf}, err
+}
 
-	if err := tf.GenerateTerraformVarFile(azapp); err != nil {
-		return err
+func (tfd *TfDependenciesClient) CheckTerraformableExternalDependencies(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (string, bool, error) {
+	logr := logr.FromContextOrDiscard(ctx)
+	if err := tfd.tfc.GenerateTerraformVarFile(azapp); err != nil {
+		return "", false, err
 	}
+	planfile := fmt.Sprintf("plan-%s", azapp.Name)
+	outOption := tfexec.Out(planfile)
+	logr.Info(fmt.Sprintf("Initiating terraform plan of app [%s]", azapp.Name))
+	start := time.Now()
+	changed, err := tfd.tfc.Plan(context.TODO(), outOption)
+	elapsed := time.Since(start)
+	logr.Info(fmt.Sprintf("Done terraform plan of app [%s], plan duration: %v", azapp.Name, elapsed))
+	return planfile, changed, err
+}
 
-	if err := tf.InitTerraform(); err != nil {
-		return err
-	}
-
+func (tfd *TfDependenciesClient) ManageTerraformableExternalDependencies(ctx context.Context, azapp *k8sappv0alpha1.AzureApp, phase string, planfile string) error {
+	logr := logr.FromContextOrDiscard(ctx)
 	switch phase {
-	case Apply:
-		return tf.ReconcileAzureResources()
-	case Destroy:
-		return tf.DestroyAzureResources(azapp)
+	case "apply":
+		logr.Info(fmt.Sprintf("Initiating terraform apply of app [%s]", azapp.Name))
+		return tfd.tfc.ReconcileAzureResources(planfile)
+	case "destroy":
+		return tfd.tfc.DestroyAzureResources(ctx, azapp)
 	default:
 		return errors.New("invalid phase")
 	}
@@ -77,4 +85,12 @@ func ManageOtherExternalDependencies(azapp *k8sappv0alpha1.AzureApp) error {
 		}
 	}
 	return nil
+}
+
+func CheckCertificate(azapp *k8sappv0alpha1.AzureApp) (bool, error) {
+	azclient, err := az.NewAzureClient()
+	if err != nil {
+		return false, err
+	}
+	return azclient.SslCertificateExists(fmt.Sprintf("%s-kv", azapp.Spec.Identifier))
 }

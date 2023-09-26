@@ -219,24 +219,25 @@ func (r *AzureAppReconciler) RemoveFinalizer(finalizerName string, azapp *k8sapp
 	return nil
 }
 
-func (r *AzureAppReconciler) ManageFinalizer(ctx context.Context, azapp k8sappv0alpha1.AzureApp) error {
+func (r *AzureAppReconciler) ManageFinalizer(ctx context.Context, azapp k8sappv0alpha1.AzureApp, tfclient *dependencies.TfDependenciesClient) (bool, error) {
 	logr := logr.FromContextOrDiscard(ctx)
 	finalizer := "DestroyAzureResources"
 	r.SetupFinalizer(finalizer, &azapp)
 	if !azapp.ObjectMeta.DeletionTimestamp.IsZero() {
 		logr.Info("Removing Azure Resources")
 		if err := r.kubeclient.SetProvisionState("Removing Azure resources", &azapp); err != nil {
-			return err
+			return false, err
 		}
-		if err := dependencies.ManageTerraformableExternalDependencies(&azapp, "destroy"); err != nil {
-			return err
+		if err := tfclient.ManageTerraformableExternalDependencies(ctx, &azapp, "destroy", ""); err != nil {
+			return false, err
 		}
 		if err := r.RemoveFinalizer(finalizer, &azapp); err != nil {
-			return err
+			return false, err
 		}
 		logr.Info(fmt.Sprintf("Done deleting Azure Resources for app: %s", azapp.Name))
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func getPreviousSpec(azapp *k8sappv0alpha1.AzureApp) (*k8sappv0alpha1.AzureAppSpec, error) {

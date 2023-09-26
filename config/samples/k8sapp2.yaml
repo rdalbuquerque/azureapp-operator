@@ -8,6 +8,6 @@ spec:
   url: myapp2.local.dev
   containerImage: nginx
   servingPort: 8080
-  enableDatabase: true
+  enableDatabase: false
   envVars:
     var1: value
