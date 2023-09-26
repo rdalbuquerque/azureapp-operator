@@ -55,7 +55,7 @@ type tfBackendInfo struct {
 
 func renderTerraformMain(azapp *k8sappv0alpha1.AzureApp, tfDir string) error {
 	backendInfo := tfBackendInfo{}
-	backendInfo.ResourceGroup = config.Config.
+	backendInfo.ResourceGroup = config.Config.ResourceGroup
 	backendInfo.StorageAccount = "prdazureappoperator"
 	backendInfo.Container = "state"
 	backendInfo.Key = azapp.Name
