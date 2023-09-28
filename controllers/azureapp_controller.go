@@ -67,6 +67,7 @@ var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("a
 // 2- once external dependencies are good to go, manage kubernetes objects
 func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logr := logr.FromContextOrDiscard(ctx)
+	logr.Info("Initializing reconcile loop")
 
 	// map azure app being reconciled into azapp object
 	azapp := k8sappv0alpha1.AzureApp{}
@@ -75,9 +76,10 @@ func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// initiates clients
-	r.kubeclient = kubeobjects.NewKubeClient(r.Client, ctx, applyOpts)
-	tfclient, err := dependencies.NewTerraformClient(&azapp)
+	r.kubeclient = kubeobjects.NewKubeClient(ctx, r.Client, applyOpts)
+	tfclient, err := dependencies.NewTerraformClient(ctx, &azapp)
 	if err != nil {
+		logr.Info("error initiating terraform client")
 		return ctrl.Result{}, err
 	}
 
@@ -118,7 +120,7 @@ func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// reconcile kubernetes objects
-	azappk8s, err := r.buildKubeObjects(azapp)
+	azappk8s, err := r.buildKubeObjects(ctx, azapp)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

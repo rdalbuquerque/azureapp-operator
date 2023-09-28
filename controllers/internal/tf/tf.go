@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/rdalbuquerque/azure-operator/controller/config"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
 )
@@ -21,7 +20,7 @@ type TfClient struct {
 	*tfexec.Terraform
 }
 
-func NewTerraformClient(tfExePath, tfBaseDir string, azapp *k8sappv0alpha1.AzureApp) (*TfClient, error) {
+func NewTerraformClient(ctx context.Context, tfExePath, tfBaseDir string, azapp *k8sappv0alpha1.AzureApp) (*TfClient, error) {
 	workdir := fmt.Sprintf("%s/%s", tfBaseDir, azapp.Name)
 	if err := os.Mkdir(workdir, os.FileMode(0666)); err != nil {
 		if !os.IsExist(err) {
@@ -38,7 +37,7 @@ func NewTerraformClient(tfExePath, tfBaseDir string, azapp *k8sappv0alpha1.Azure
 	if err := renderTerraformMain(azapp, tfBaseDir); err != nil {
 		return nil, err
 	}
-	if err := tf.Init(context.TODO()); err != nil {
+	if err := tf.Init(ctx); err != nil {
 		return nil, err
 	}
 	return &TfClient{
@@ -55,9 +54,9 @@ type tfBackendInfo struct {
 
 func renderTerraformMain(azapp *k8sappv0alpha1.AzureApp, tfDir string) error {
 	backendInfo := tfBackendInfo{}
-	backendInfo.ResourceGroup = config.Config.ResourceGroup
-	backendInfo.StorageAccount = "prdazureappoperator"
-	backendInfo.Container = "state"
+	backendInfo.ResourceGroup = config.Config.TerraformBackendResourceGroup
+	backendInfo.StorageAccount = config.Config.TerraformBackendStorageAccount
+	backendInfo.Container = config.Config.TerraformBackendContainer
 	backendInfo.Key = azapp.Name
 
 	tmplFile := fmt.Sprintf("%s/main.tf.gotmpl", tfDir)
@@ -118,7 +117,7 @@ func (tf *TfClient) DestroyAzureResources(ctx context.Context, azapp *k8sappv0al
 }
 
 func (tf *TfClient) deleteStateFile(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) error {
-	azcred, err := azidentity.NewClientSecretCredential(os.Getenv("ARM_TENANT_ID"), os.Getenv("ARM_CLIENT_ID"), os.Getenv("ARM_CLIENT_SECRET"), nil)
+	azcred, err := azidentity.NewClientSecretCredential(config.Config.ARMTenantID, config.Config.ARMClientID, config.Config.ARMClientSecret, nil)
 	if err != nil {
 		return err
 	}

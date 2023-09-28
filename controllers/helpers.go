@@ -2,12 +2,8 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"reflect"
 
 	"github.com/go-logr/logr"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
@@ -175,9 +171,9 @@ func (r *AzureAppReconciler) desiredSecret(azappCred map[string]string, azapp *k
 	return secret, nil
 }
 
-func (r *AzureAppReconciler) buildKubeObjects(azapp k8sappv0alpha1.AzureApp) ([]client.Object, error) {
+func (r *AzureAppReconciler) buildKubeObjects(ctx context.Context, azapp k8sappv0alpha1.AzureApp) ([]client.Object, error) {
 	azappk8s := kubeobjects.AzAppKubeObjects
-	appCredential, err := dependencies.GetTerraformAppCredentialOutput(&azapp)
+	appCredential, err := dependencies.GetTerraformAppCredentialOutput(ctx, &azapp)
 	if err != nil {
 		return nil, err
 	}
@@ -238,41 +234,6 @@ func (r *AzureAppReconciler) ManageFinalizer(ctx context.Context, azapp k8sappv0
 		return true, nil
 	}
 	return false, nil
-}
-
-func getPreviousSpec(azapp *k8sappv0alpha1.AzureApp) (*k8sappv0alpha1.AzureAppSpec, error) {
-	azappSpecFile := fmt.Sprintf("%s/%s/spec.auto.tfvars.json", os.Getenv("TF_BASE_PATH"), azapp.Name)
-	content, err := ioutil.ReadFile(azappSpecFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrFileNotExist
-		}
-		return nil, err
-	}
-
-	var previousSpec k8sappv0alpha1.AzureAppSpec
-	err = json.Unmarshal(content, &previousSpec)
-	if err != nil {
-		return nil, err
-	}
-
-	return &previousSpec, nil
-}
-
-func shouldReconcile(azapp *k8sappv0alpha1.AzureApp) (bool, error) {
-	previousSpec, err := getPreviousSpec(azapp)
-	if err != nil {
-		if err == ErrFileNotExist {
-			return true, nil
-		}
-		return false, err
-	}
-
-	previousSpecValue := *previousSpec
-	if reflect.DeepEqual(previousSpecValue, azapp.Spec) {
-		return false, nil
-	}
-	return true, nil
 }
 
 func ignoreConflict(ctx context.Context, err error) error {

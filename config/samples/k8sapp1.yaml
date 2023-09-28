@@ -10,7 +10,7 @@ spec:
   - role1
   - role2
   containerImage: nginx
-  enableDatabase: true
+  enableDatabase: false
   servingPort: 8080
   envVars:
     var1: value1

@@ -17,7 +17,7 @@ type KubeClient struct {
 	applyOptions []client.PatchOption
 }
 
-func NewKubeClient(c client.Client, ctx context.Context, applyOptions []client.PatchOption) *KubeClient {
+func NewKubeClient(ctx context.Context, c client.Client, applyOptions []client.PatchOption) *KubeClient {
 	return &KubeClient{
 		Client:       c,
 		context:      ctx,

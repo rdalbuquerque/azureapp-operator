@@ -33,9 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/lease"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
@@ -43,12 +40,8 @@ import (
 )
 
 var (
-	scheme             = runtime.NewScheme()
-	setupLog           = ctrl.Log.WithName("setup")
-	azcred             *azidentity.ClientSecretCredential
-	bbClient           *blockblob.Client
-	lc                 *lease.BlobClient
-	shutdownSignalChan chan os.Signal
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
@@ -59,10 +52,7 @@ func init() {
 }
 
 func main() {
-	if err := config.LoadConfig(); err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
-	}
+	config.SetConfig()
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string

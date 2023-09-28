@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/az"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/db"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/tf"
@@ -19,8 +19,8 @@ type TfDependenciesClient struct {
 	tfc *tf.TfClient
 }
 
-func NewTerraformClient(azapp *k8sappv0alpha1.AzureApp) (*TfDependenciesClient, error) {
-	tf, err := tf.NewTerraformClient(os.Getenv("TF_EXECUTABLE_PATH"), os.Getenv("TF_BASE_PATH"), azapp)
+func NewTerraformClient(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (*TfDependenciesClient, error) {
+	tf, err := tf.NewTerraformClient(ctx, config.Config.TerraformExecutablePath, config.Config.TerraformBasePath, azapp)
 	return &TfDependenciesClient{tfc: tf}, err
 }
 
@@ -52,9 +52,9 @@ func (tfd *TfDependenciesClient) ManageTerraformableExternalDependencies(ctx con
 	}
 }
 
-func GetTerraformAppCredentialOutput(azapp *k8sappv0alpha1.AzureApp) (map[string]string, error) {
+func GetTerraformAppCredentialOutput(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (map[string]string, error) {
 	//refactor so I don't have to instantiate the client again here
-	tf, err := tf.NewTerraformClient(os.Getenv("TF_EXECUTABLE_PATH"), os.Getenv("TF_BASE_PATH"), azapp)
+	tf, err := tf.NewTerraformClient(ctx, config.Config.TerraformExecutablePath, config.Config.TerraformBasePath, azapp)
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +67,9 @@ func ManageOtherExternalDependencies(azapp *k8sappv0alpha1.AzureApp) error {
 	// Setup DB User
 	if azapp.Spec.EnableDatabase {
 		sqlclient, err := db.NewServicePrincipalClient(
-			os.Getenv("ARM_CLIENT_ID"),
-			os.Getenv("ARM_CLIENT_SECRET"),
-			"prdazureappoperatorsv1",
+			config.Config.ARMClientID,
+			config.Config.ARMClientSecret,
+			config.Config.DefaultSQLServer,
 			fmt.Sprintf("%s-db", azapp.Spec.Identifier),
 			context.TODO(),
 		)
