@@ -4,13 +4,15 @@ metadata:
   name: app1
 spec:
   identifier: apprda1
-  identifierUri: api://myappuri1
+  identifierUri: api://appuri1
   url: myapp.local.dev
   appRoles:
   - role1
   - role2
   containerImage: nginx
+  enableDatabase: false
   servingPort: 8080
   envVars:
     var1: value1
     var2: value2
+    var3: value

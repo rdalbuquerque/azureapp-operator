@@ -25,9 +25,15 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+FROM ubuntu:22.04
+RUN apt-get update -y && apt-get install wget -y && apt-get install zip -y
+RUN wget https://releases.hashicorp.com/terraform/1.5.5/terraform_1.5.5_linux_amd64.zip
+RUN unzip terraform_1.5.5_linux_amd64.zip
+RUN mv terraform /tmp/
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY terraform/ terraform/ 
+RUN chown -R 65532:65532 /terraform
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

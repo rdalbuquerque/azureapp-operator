@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 	"time"
@@ -26,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -33,23 +33,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/lease"
-	"github.com/hashicorp/hc-install/product"
-	"github.com/hashicorp/hc-install/releases"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	scheme             = runtime.NewScheme()
-	setupLog           = ctrl.Log.WithName("setup")
-	azcred             *azidentity.ClientSecretCredential
-	bbClient           *blockblob.Client
-	lc                 *lease.BlobClient
-	shutdownSignalChan chan os.Signal
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
@@ -59,21 +51,8 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func setupTerraform() string {
-	installer := &releases.LatestVersion{
-		Product: product.Terraform,
-	}
-
-	execPath, err := installer.Install(context.Background())
-	if err != nil {
-		setupLog.Error(err, "error installing Terraform")
-		os.Exit(1)
-	}
-
-	return execPath
-}
-
 func main() {
+	config.SetConfig()
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -84,6 +63,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	opts := zap.Options{
 		Development: true,
+		TimeEncoder: zapcore.ISO8601TimeEncoder,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -118,12 +98,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	baseDir, _ := os.Getwd()
 	if err = (&controllers.AzureAppReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		TfExecPath: setupTerraform(),
-		BaseDir:    baseDir,
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AzureApp")
 		os.Exit(1)

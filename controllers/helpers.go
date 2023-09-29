@@ -2,16 +2,25 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"github.com/go-logr/logr"
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/dependencies"
+	"github.com/rdalbuquerque/azure-operator/operator/controllers/internal/kubeobjects"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+var ErrFileNotExist = errors.New("spec file does not exist")
 
 func (r *AzureAppReconciler) desiredDeployment(azapp *k8sappv0alpha1.AzureApp, appCreds corev1.Secret) (appsv1.Deployment, error) {
 	replicas := new(int32)
@@ -162,6 +171,32 @@ func (r *AzureAppReconciler) desiredSecret(azappCred map[string]string, azapp *k
 	return secret, nil
 }
 
+func (r *AzureAppReconciler) buildKubeObjects(ctx context.Context, azapp k8sappv0alpha1.AzureApp) ([]client.Object, error) {
+	azappk8s := kubeobjects.AzAppKubeObjects
+	appCredential, err := dependencies.GetTerraformAppCredentialOutput(ctx, &azapp)
+	if err != nil {
+		return nil, err
+	}
+
+	secret, err := r.desiredSecret(appCredential, &azapp)
+	if err != nil {
+		return nil, err
+	}
+	deployment, err := r.desiredDeployment(&azapp, secret)
+	if err != nil {
+		return nil, err
+	}
+	service, err := r.desiredService(&azapp)
+	if err != nil {
+		return nil, err
+	}
+	ingress, err := r.desiredIngress(&azapp)
+	if err != nil {
+		return nil, err
+	}
+	return append(azappk8s, &secret, &deployment, &service, &ingress), nil
+}
+
 func (r *AzureAppReconciler) SetupFinalizer(finalizerName string, azapp *k8sappv0alpha1.AzureApp) error {
 	if !controllerutil.ContainsFinalizer(azapp, finalizerName) {
 		controllerutil.AddFinalizer(azapp, finalizerName)
@@ -178,4 +213,34 @@ func (r *AzureAppReconciler) RemoveFinalizer(finalizerName string, azapp *k8sapp
 		return err
 	}
 	return nil
+}
+
+func (r *AzureAppReconciler) ManageFinalizer(ctx context.Context, azapp k8sappv0alpha1.AzureApp, tfclient *dependencies.TfDependenciesClient) (bool, error) {
+	logr := logr.FromContextOrDiscard(ctx)
+	finalizer := "DestroyAzureResources"
+	r.SetupFinalizer(finalizer, &azapp)
+	if !azapp.ObjectMeta.DeletionTimestamp.IsZero() {
+		logr.Info("Removing Azure Resources")
+		if err := r.kubeclient.SetProvisionState("Removing Azure resources", &azapp); err != nil {
+			return false, err
+		}
+		if err := tfclient.ManageTerraformableExternalDependencies(ctx, &azapp, "destroy", ""); err != nil {
+			return false, err
+		}
+		if err := r.RemoveFinalizer(finalizer, &azapp); err != nil {
+			return false, err
+		}
+		logr.Info(fmt.Sprintf("Done deleting Azure Resources for app: %s", azapp.Name))
+		return true, nil
+	}
+	return false, nil
+}
+
+func ignoreConflict(ctx context.Context, err error) error {
+	logr := logr.FromContextOrDiscard(ctx)
+	if k8serr.IsConflict(err) {
+		logr.Info("Ignoring conflict error")
+		return nil
+	}
+	return err
 }

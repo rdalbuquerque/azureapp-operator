@@ -12,11 +12,13 @@ terraform {
     }
     azurerm = {
       source = "hashicorp/azurerm"
+      version = "3.66.0"
     }
   }
 }
 
 provider "azurerm" {
+  skip_provider_registration = true
   features {}
 }
 
@@ -47,9 +49,24 @@ module "azapp" {
 }
 
 data "azurerm_mssql_server" "sv" {
-  resource_group_name = "tf-remote"
-  name = "rdatestsv1"  
+  resource_group_name = "terraformcloud-test-prd"
+  name = "prdazureappoperatorsv1"  
 } 
+
+data "http" "current_ip" {
+  url = "https://api.ipify.org"
+
+  request_headers = {
+    Accept = "application/json"
+  }
+}
+
+resource "azurerm_mssql_firewall_rule" "allow_client" {
+  name             = "${var.identifier}-allow-client-rule"
+  server_id        = data.azurerm_mssql_server.sv.id
+  start_ip_address = data.http.current_ip.body
+  end_ip_address   = data.http.current_ip.body
+}
 
 resource "azurerm_mssql_database" "db" {
   count = var.enableDatabase ? 1 : 0
