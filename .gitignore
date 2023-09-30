@@ -27,8 +27,6 @@ Dockerfile.cross
 
 */**/.terraform
 
-.vscode
-
 .infracost
 
 .env*

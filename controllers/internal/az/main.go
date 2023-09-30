@@ -23,13 +23,13 @@ func NewAzureClient() (*AzClient, error) {
 	return &AzClient{cred: azcred}, nil
 }
 
-func (az *AzClient) SslCertificateExists(azkeyvault string) (bool, error) {
+func (az *AzClient) TlsCertificateExists(azkeyvault string) (bool, error) {
 	kvUrl := fmt.Sprintf("https://%s.vault.azure.net/", azkeyvault)
 	certClient, err := azcertificates.NewClient(kvUrl, az.cred, nil)
 	if err != nil {
 		return false, err
 	}
-	getResp, err := certClient.GetCertificate(context.TODO(), "ssl", "", nil)
+	getResp, err := certClient.GetCertificate(context.TODO(), "tls", "", nil)
 	return getResp.ID != nil, IgnoreNotFound(err)
 }
 

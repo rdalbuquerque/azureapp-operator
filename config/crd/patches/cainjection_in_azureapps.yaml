@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: azureapps.k8sapp.rdalbuquerque.dev
+  name: azureapps.k8sapp.rda.dev

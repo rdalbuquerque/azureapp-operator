@@ -79,7 +79,7 @@ func main() {
 		HealthProbeBindAddress:  probeAddr,
 		LeaderElection:          enableLeaderElection,
 		GracefulShutdownTimeout: gracefulShutdownTimeout,
-		LeaderElectionID:        "09653946.rdalbuquerque.dev",
+		LeaderElectionID:        "09653946.rda.dev",
 		Namespace:               os.Getenv("NAMESPACE"),
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the

@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: azureapps.k8sapp.rdalbuquerque.dev
+  name: azureapps.k8sapp.rda.dev
 spec:
-  group: k8sapp.rdalbuquerque.dev
+  group: k8sapp.rda.dev
   names:
     kind: AzureApp
     listKind: AzureAppList

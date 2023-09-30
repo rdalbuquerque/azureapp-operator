@@ -1,4 +1,4 @@
-apiVersion: k8sapp.rdalbuquerque.dev/v0alpha1
+apiVersion: k8sapp.rda.dev/v0alpha1
 kind: AzureApp
 metadata:
   name: app2

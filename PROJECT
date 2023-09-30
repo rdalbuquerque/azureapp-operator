@@ -1,4 +1,4 @@
-domain: rdalbuquerque.dev
+domain: rda.dev
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -11,7 +11,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: rdalbuquerque.dev
+  domain: rda.dev
   group: k8sapp
   kind: AzureApp
   path: github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1

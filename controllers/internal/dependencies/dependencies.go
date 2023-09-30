@@ -92,5 +92,5 @@ func CheckCertificate(azapp *k8sappv0alpha1.AzureApp) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return azclient.SslCertificateExists(fmt.Sprintf("%s-kv", azapp.Spec.Identifier))
+	return azclient.TlsCertificateExists(fmt.Sprintf("%s-kv", azapp.Spec.Identifier))
 }

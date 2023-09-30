@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package v0alpha1 contains API Schema definitions for the k8sapp v0alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=k8sapp.rdalbuquerque.dev
+// +groupName=k8sapp.rda.dev
 package v0alpha1
 
 import (
@@ -26,7 +26,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "k8sapp.rdalbuquerque.dev", Version: "v0alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "k8sapp.rda.dev", Version: "v0alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

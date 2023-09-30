@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - k8sapp.rdalbuquerque.dev
+  - k8sapp.rda.dev
   resources:
   - azureapps
   verbs:
@@ -18,13 +18,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - k8sapp.rdalbuquerque.dev
+  - k8sapp.rda.dev
   resources:
   - azureapps/finalizers
   verbs:
   - update
 - apiGroups:
-  - k8sapp.rdalbuquerque.dev
+  - k8sapp.rda.dev
   resources:
   - azureapps/status
   verbs:

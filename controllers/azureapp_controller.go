@@ -44,9 +44,9 @@ type AzureAppReconciler struct {
 
 var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("azureapp-controller")}
 
-//+kubebuilder:rbac:groups=k8sapp.rdalbuquerque.dev,resources=azureapps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=k8sapp.rdalbuquerque.dev,resources=azureapps/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=k8sapp.rdalbuquerque.dev,resources=azureapps/finalizers,verbs=update
+//+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
