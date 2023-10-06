@@ -19,13 +19,13 @@ This project aims to follow the Kubernetes [Operator pattern](https://kubernetes
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
 which provides a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster 
 
-For terraform magement, it uses an Azure storage account backend. The idea is that the operator will have credentials to manage a resource group with all app's resources from a given namespace. To keep the state files to a minimum size and avoid interference across apps, it generates a state for each app. So, for each AzureApp provisioned the reconcile function will:
-1 - create a directory (Terraform workdir for the app)
-2 - render Terraform `main.tf` with proper state reference for the app
-3 - run terraform init and plan
-4 - if plan accuses any changes, apply them, otherwise, move on
-5 - manage database access
-6 - manage kubernetes objects
+For terraform magement, it uses an Azure storage account backend. The idea is that the operator will have credentials to manage a resource group with all app's resources from a given namespace. To keep the state files to a minimum size and avoid interference across apps, it generates a state for each app. So, for each AzureApp provisioned the reconcile function will:\
+1 - create a directory (Terraform workdir for the app)\
+2 - render Terraform `main.tf` with proper state reference for the app\
+3 - run terraform init and plan\
+4 - if plan accuses any changes, apply them, otherwise, move on\
+5 - manage database access\
+6 - manage kubernetes objects\
 7 - wait for tls certificate to be present in keyvault's app
 
 Since it's just an experimental project and I want to keep my Azure bill to a minimum, the operator implements an aggressive finalizer. It runs a Terraform destroy and also deletes the state file for the given app.
@@ -39,18 +39,18 @@ flowchart TD;
 ```
 #### Usage breakdown
 - apply phase:
-> `kubectl apply -f .\config\samples\k8sapp1.yaml`
-> First phase is provisioning/reconciling external dependencies
-> ![Reconciling external dependencies](.attachments/image.png)
-> once dependencies are ready, the controller checks if there is a tls certificate present in the app's key vault, if there isn't, the reconcile loop gets requeued after 30 seconds
-> ![Waiting certificate](.attachments/image-1.png)
-> if there is a certificate present, kubernetes objects are deployed
-> ![Alt text](.attachments/image-2.png)
+> `kubectl apply -f .\config\samples\k8sapp1.yaml`\
+> First phase is provisioning/reconciling external dependencies\
+> ![Reconciling external dependencies](.attachments/image.png)\
+> once dependencies are ready, the controller checks if there is a tls certificate present in the app's key vault, if there isn't, the reconcile loop gets requeued after 30 seconds\
+> ![Waiting certificate](.attachments/image-1.png)\
+> if there is a certificate present, kubernetes objects are deployed\
+> ![Alt text](.attachments/image-2.png)\
 > 
 
 - delete phase:
-> `kubectl delete azureapp app1`
-> ![Alt text](.attachments/image-3.png)
+> `kubectl delete azureapp app1`\
+> ![Alt text](.attachments/image-3.png)\
 > After terraform destroy runs successfully, the state also gets deleted from the storage account and the finalizer is removed so the k8s objects can get deleted.
 
 ## Test It Out
