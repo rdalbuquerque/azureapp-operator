@@ -40,17 +40,23 @@ variable "enableDatabase" {
   default = false
 }
 
+locals {
+  resource_group_name = "k8soperator"
+  default_sql_server  = "rdak8soperator1sv1prd"
+}
+
 module "azapp" {
-  source         = "../azapp"
-  display_name   = "${var.identifier}-app"
-  kv_name        = "${var.identifier}-kv"
-  identifier_uri = var.identifierUri
-  app_roles      = var.appRoles
+  source              = "../azapp"
+  resource_group_name = local.resource_group_name
+  display_name        = "${var.identifier}-app"
+  kv_name             = "${var.identifier}-kv"
+  identifier_uri      = var.identifierUri
+  app_roles           = var.appRoles
 }
 
 data "azurerm_mssql_server" "sv" {
-  resource_group_name = "terraformcloud-test-prd"
-  name = "prdazureappoperatorsv1"  
+  resource_group_name = local.resource_group_name
+  name = local.default_sql_server
 } 
 
 data "http" "current_ip" {

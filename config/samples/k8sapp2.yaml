@@ -3,7 +3,7 @@ kind: AzureApp
 metadata:
   name: app2
 spec:
-  identifier: apprda2
+  identifier: apprda002
   identifierUri: api://myappuri2
   url: myapp2.local.dev
   containerImage: nginx

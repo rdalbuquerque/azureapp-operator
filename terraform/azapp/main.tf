@@ -14,7 +14,7 @@ data "azurerm_client_config" "this" {}
 data "azuread_client_config" "this" {}
 
 data "azurerm_resource_group" "backend" {
-  name = "terraformcloud-test-prd"
+  name = var.resource_group_name
 }
 
 provider "azurerm" {
@@ -44,8 +44,8 @@ resource "azuread_application" "this" {
   }
 }
 
-resource "azuread_application_password" "this" {
-  application_object_id = azuread_application.this.object_id
+resource "azuread_service_principal_password" "this" {
+  service_principal_id = azuread_service_principal.this.object_id
 }
 
 resource "azuread_service_principal" "this" {
@@ -65,4 +65,10 @@ resource "azurerm_role_assignment" "current_client_2_kv" {
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azuread_client_config.this.object_id
+}
+
+resource "azurerm_role_assignment" "globaladmin_2_kv" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = "fbbe86af-12a1-4a5a-b834-716299c83b6a"
 }

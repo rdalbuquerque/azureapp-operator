@@ -4,6 +4,6 @@ output "app_id" {
 }
 
 output "app_secret" {
-  value     = azuread_application_password.this.value
+  value     = azuread_service_principal_password.this.value
   sensitive = true
 }

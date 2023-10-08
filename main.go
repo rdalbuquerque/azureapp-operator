@@ -33,6 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	k8sappv0alpha1 "github.com/rdalbuquerque/azure-operator/operator/api/v0alpha1"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers"
 	"github.com/rdalbuquerque/azure-operator/operator/controllers/config"
@@ -52,6 +55,9 @@ func init() {
 }
 
 func main() {
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 	config.SetConfig()
 	var metricsAddr string
 	var enableLeaderElection bool

@@ -26,30 +26,33 @@ func NewTerraformClient(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (*T
 
 func (tfd *TfDependenciesClient) CheckTerraformableExternalDependencies(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (string, bool, error) {
 	logr := logr.FromContextOrDiscard(ctx)
-	if err := tfd.tfc.GenerateTerraformVarFile(azapp); err != nil {
-		return "", false, err
-	}
 	planfile := fmt.Sprintf("plan-%s", azapp.Name)
 	outOption := tfexec.Out(planfile)
 	logr.Info(fmt.Sprintf("Initiating terraform plan of app [%s]", azapp.Name))
 	start := time.Now()
-	changed, err := tfd.tfc.Plan(context.TODO(), outOption)
+	parallelism := tfexec.Parallelism(1)
+	changed, err := tfd.tfc.Plan(context.TODO(), outOption, parallelism)
 	elapsed := time.Since(start)
-	logr.Info(fmt.Sprintf("Done terraform plan of app [%s], plan duration: %v", azapp.Name, elapsed))
+	logr.Info(fmt.Sprintf("[%s] plan duration: %v", azapp.Name, elapsed))
 	return planfile, changed, err
 }
 
 func (tfd *TfDependenciesClient) ManageTerraformableExternalDependencies(ctx context.Context, azapp *k8sappv0alpha1.AzureApp, phase string, planfile string) error {
 	logr := logr.FromContextOrDiscard(ctx)
+	var err error
+	start := time.Now()
 	switch phase {
 	case "apply":
 		logr.Info(fmt.Sprintf("Initiating terraform apply of app [%s]", azapp.Name))
-		return tfd.tfc.ReconcileAzureResources(planfile)
+		err = tfd.tfc.ReconcileAzureResources(planfile)
 	case "destroy":
-		return tfd.tfc.DestroyAzureResources(ctx, azapp)
+		err = tfd.tfc.DestroyAzureResources(ctx, azapp)
 	default:
 		return errors.New("invalid phase")
 	}
+	elapsed := time.Since(start)
+	logr.Info(fmt.Sprintf("[%s] %s duration: %v", azapp.Name, phase, elapsed))
+	return err
 }
 
 func GetTerraformAppCredentialOutput(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) (map[string]string, error) {

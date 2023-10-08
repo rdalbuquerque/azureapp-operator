@@ -3,7 +3,7 @@ kind: AzureApp
 metadata:
   name: app1
 spec:
-  identifier: apprda1
+  identifier: apprda001
   identifierUri: api://appuri1
   url: myapp.local.dev
   appRoles:

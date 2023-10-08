@@ -69,7 +69,7 @@ spec:
       - command:
         - /manager
         args:
-        - --leader-elect
+        - --leader-elect=false
         image: controller:latest
         name: manager
         securityContext:
@@ -93,21 +93,27 @@ spec:
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
-            memory: 512Mi
+            memory: 2Gi
           requests:
             cpu: 10m
-            memory: 64Mi
+            memory: 512Mi
         env:
+        - name: DEFAULT_SQL_SERVER
+          value: "rdak8soperator1sv1prd"
+        - name: TF_BACKEND_RESOURCE_GROUP
+          value: "k8soperator"
+        - name: TF_BACKEND_STORAGE_ACCOUNT
+          value: "rdak8soperator1prd"
         - name: TF_EXECUTABLE_PATH
           value: /tmp/terraform
         - name: TF_BASE_PATH
           value: /terraform
         - name: ARM_TENANT_ID
-          value: "8006ac7c-1b1e-417b-ad4a-57b5f9157df9" 
+          value: "95f9e241-3951-41d3-8b42-608a9b9475e5" 
         - name: ARM_SUBSCRIPTION_ID
-          value: "73a77350-bf8c-43ec-aa8a-e642dedcdb8a"
+          value: "a4a819d3-a257-42b8-96b5-8c92b565b2d7"
         - name: ARM_CLIENT_ID
-          value: 23432e76-9f5c-49d5-acf9-a54da22f969f
+          value: 814465fc-1079-4168-b0a4-9f4a540334f9
         - name: ARM_CLIENT_SECRET
           valueFrom:
             secretKeyRef:

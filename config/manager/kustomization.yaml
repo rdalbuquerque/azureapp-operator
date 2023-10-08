@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: rodalbuquerque/operator
-  newTag: "0.10"
+  newTag: "0.24"

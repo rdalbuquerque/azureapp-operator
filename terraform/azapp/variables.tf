@@ -14,3 +14,7 @@ variable "app_roles" {
 variable "identifier_uri" {
   type = string
 }
+
+variable "resource_group_name" {
+  type = string
+}

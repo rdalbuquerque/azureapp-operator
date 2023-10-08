@@ -37,6 +37,9 @@ func NewTerraformClient(ctx context.Context, tfExePath, tfBaseDir string, azapp 
 	if err := renderTerraformMain(azapp, tfBaseDir); err != nil {
 		return nil, err
 	}
+	if err := generateTerraformVarFile(azapp, workdir); err != nil {
+		return nil, err
+	}
 	if err := tf.Init(ctx); err != nil {
 		return nil, err
 	}
@@ -69,8 +72,8 @@ func renderTerraformMain(azapp *k8sappv0alpha1.AzureApp, tfDir string) error {
 	return tmpl.Execute(maintf, backendInfo)
 }
 
-func (tf *TfClient) GenerateTerraformVarFile(azapp *k8sappv0alpha1.AzureApp) error {
-	tfvarFileName := fmt.Sprintf("%s/spec.auto.tfvars.json", tf.WorkingDir())
+func generateTerraformVarFile(azapp *k8sappv0alpha1.AzureApp, workdir string) error {
+	tfvarFileName := fmt.Sprintf("%s/spec.auto.tfvars.json", workdir)
 	jsonspec, err := json.Marshal(azapp.Spec)
 	if err != nil {
 		return err
@@ -99,7 +102,8 @@ func (tf *TfClient) ReconcileAzureResources(planfile string) error {
 	if err := os.Chdir(tf.WorkingDir()); err != nil {
 		return err
 	}
-	return tf.Apply(context.Background())
+	parallelism := tfexec.Parallelism(1)
+	return tf.Apply(context.Background(), parallelism)
 }
 
 func (tf *TfClient) DestroyAzureResources(ctx context.Context, azapp *k8sappv0alpha1.AzureApp) error {
@@ -121,7 +125,7 @@ func (tf *TfClient) deleteStateFile(ctx context.Context, azapp *k8sappv0alpha1.A
 	if err != nil {
 		return err
 	}
-	bbClient, err := blockblob.NewClient(fmt.Sprintf("https://prdazureappoperator.blob.core.windows.net/state/k8sapp.%s.json", azapp.Name), azcred, nil)
+	bbClient, err := blockblob.NewClient(fmt.Sprintf("https://%s.blob.core.windows.net/state/k8sapp.%s.json", config.Config.TerraformBackendStorageAccount, azapp.Name), azcred, nil)
 	if err != nil {
 		return err
 	}

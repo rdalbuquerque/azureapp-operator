@@ -47,6 +47,7 @@ var applyOpts = []client.PatchOption{client.ForceOwnership, client.FieldOwner("a
 //+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=k8sapp.rda.dev,resources=azureapps/finalizers,verbs=update
+//+kubebuilder:rbac:groups=*,resources=*,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -100,9 +101,12 @@ func (r *AzureAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if err := r.kubeclient.SetProvisionState("Reconciling external dependencies", &azapp); err != nil {
 			return ctrl.Result{}, ignoreConflict(ctx, err)
 		}
+		start := time.Now()
 		if err := tfclient.ManageTerraformableExternalDependencies(ctx, &azapp, "apply", planfile); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error managing terraform dependencies: %s", err)
 		}
+		elapsed := time.Since(start)
+		logr.Info(fmt.Sprintf("Done terraform apply of app [%s], apply duration: %v", azapp.Name, elapsed))
 		if err := dependencies.ManageOtherExternalDependencies(&azapp); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error managing other dependencies: %s", err)
 		}
