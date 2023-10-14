@@ -41,16 +41,16 @@ flowchart TD;
 - apply phase:
 > `kubectl apply -f .\config\samples\k8sapp1.yaml`\
 > First phase is provisioning/reconciling external dependencies\
-> ![Reconciling external dependencies](.attachments/image.png)\
+> ![Reconciling external dependencies](https://github.com/rdalbuquerque/azureapp-operator/blob/main/.attachments/image.png?raw=true)\
 > once dependencies are ready, the controller checks if there is a tls certificate present in the app's key vault, if there isn't, the reconcile loop gets requeued after 30 seconds\
-> ![Waiting certificate](.attachments/image-1.png)\
+> ![Waiting certificate](https://github.com/rdalbuquerque/azureapp-operator/blob/main/.attachments/image-1.png?raw=true)\
 > if there is a certificate present, kubernetes objects are deployed\
-> ![Alt text](.attachments/image-2.png)\
+> ![Provisioned](https://github.com/rdalbuquerque/azureapp-operator/blob/main/.attachments/image-2.png?raw=true)\
 > 
 
 - delete phase:
 > `kubectl delete azureapp app1`\
-> ![Alt text](.attachments/image-3.png)\
+> ![Removing Azure Resources](https://github.com/rdalbuquerque/azureapp-operator/blob/main/.attachments/image-3.png?raw=true)\
 > After terraform destroy runs successfully, the state also gets deleted from the storage account and the finalizer is removed so the k8s objects can get deleted.
 
 ## Test It Out
